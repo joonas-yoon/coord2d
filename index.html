@@ -15,6 +15,7 @@
     <style>
       html, body { width:  100%; height: 100%; margin: 0; padding: 0; }
       div { box-sizing: border-box; }
+      #canvas { overflow: hidden; }
     </style>
   </head>
   <body>
@@ -56,8 +57,12 @@
             this.canvas = canvas;
             this.context = canvas.getContext('2d');
             this.container = canvas.parentElement;
-            this.centerX = canvas.width / 2;
-            this.centerY = canvas.height / 2;
+            this.left = -canvas.width / 2;
+            this.top = -canvas.height / 2;
+            this.right = canvas.width / 2;
+            this.bottom = canvas.height / 2;
+            this.originX = -this.left;
+            this.originY = -this.top;
           }
 
           static drawLine(context, x1, y1, x2, y2, color) {
@@ -82,80 +87,158 @@
             this.points = points;
           }
 
-          setCenter(cx, cy) {
-            this.centerX = cx;
-            this.centerY = cy;
+          setViewport(left, top, right, bottom) {
+            this.left = left;
+            this.top = top;
+            this.right = right;
+            this.bottom = bottom;
+            this.originX = -this.left;
+            this.originY = -this.top;
           }
 
-          moveCenter(dx, dy) {
-            this.centerX += dx;
-            this.centerY += dy;
+          moveViewport(dx, dy) {
+            const width = this.right - this.left;
+            const height = this.bottom - this.top;
+            const left = this.left + dx, top = this.top + dy;
+            const right = left + width, bottom = top + height;
+            this.setViewport(left, top, right, bottom);
+          }
+
+          fit(container) {
+            // fit to container
+            this.container = container;
+            const bounds = container.getBoundingClientRect();
+            this.canvas.width  = bounds.width || window.innerWidth;
+            this.canvas.height = bounds.height || window.innerHeight;
+            this.setViewport(-bounds.width / 2, -bounds.height / 2, bounds.width / 2, bounds.height / 2);
           }
           
           draw() {
-            const { points, container, canvas, context, centerX, centerY } = this;
-            // fit to container
-            const bounds = container.getBoundingClientRect();
-            canvas.width  = bounds.width || window.innerWidth;
-            canvas.height = bounds.height || window.innerHeight;
-            // grid lines
+            // config variables
+            const { points, canvas, context, left, top, right, bottom } = this;
+            const { originX, originY } = this;
             const {width, height} = canvas;
             const delta = 50;
-            // horizonal y negative
-            for (let i = 0; i < height / 2; i += delta) {
-              CoordPlane.drawLine(context, 0, centerY + i, width, centerY + i, '#cccccc');
-              CoordPlane.drawLine(context, 0, centerY - i, width, centerY - i, '#cccccc');
-            }
-            for (let i = 0; i < width / 2; i += delta) {
-              CoordPlane.drawLine(context, centerX + i, 0, centerX + i, height, '#cccccc');
-              CoordPlane.drawLine(context, centerX - i, 0, centerX - i, height, '#cccccc');
-            }
-            // XY axis
-            CoordPlane.drawLine(context, centerX, 0, centerX, height, '#000');
-            CoordPlane.drawLine(context, 0, centerY, width, centerY, '#000');
-
-            // draw points
             const radius = 2, fontSize = 16;
+            // clear before draw
+            context.clearRect(0, 0, canvas.width, canvas.height);
+            // horizonal line
+            for (let i = -top % delta; i <= height; i += delta) {
+              CoordPlane.drawLine(context, 0, i, width, i, i == originY ? '#333' : '#ccc');
+            }
+            // vertical line
+            for (let i = -left % delta; i <= width; i += delta) {
+              CoordPlane.drawLine(context, i, 0, i, height, i == originX ? '#333' : '#ccc');
+            }
+            // draw points
             let vertexId = 1;
             for (const p of points) {
-              console.log(p);
               if (p.length == 2) {
-                CoordPlane.drawCircle(context, centerX + p[0], centerY - p[1], radius);
+                const x = originX + p[0], y = originY - p[1];
+                CoordPlane.drawCircle(context, x, y, radius);
                 context.font = `${fontSize}px Consolas`;
-                context.fillText(vertexId++, centerX + p[0], centerY - p[1] + fontSize);
+                context.fillText(vertexId++, x, y + fontSize);
               } else if (p.length == 4) {
-                CoordPlane.drawCircle(context, centerX + p[0], centerY - p[1], radius);
-                CoordPlane.drawCircle(context, centerX + p[2], centerY - p[3], radius);
-                CoordPlane.drawLine(context, centerX + p[0], centerY - p[1], centerX + p[2], centerY - p[3], '#000');
+                const x1 = originX + p[0], y1 = originY - p[1];
+                const x2 = originX + p[2], y2 = originY - p[3];
+                CoordPlane.drawCircle(context, x1, y1, radius);
+                CoordPlane.drawCircle(context, x2, y2, radius);
+                CoordPlane.drawLine(context, x1, y1, x2, y2, '#000');
                 context.font = `${fontSize}px Consolas`;
-                context.fillText(vertexId++, centerX + (p[0] + p[2]) / 2, centerY - (p[1] + p[3]) / 2 + fontSize);
+                context.fillText(vertexId++, (x1 + x2) / 2, (y1 + y2) / 2 + fontSize);
               }
             }
           }
           
           render() {
-            console.log(this);
             if (this.points && this.points.length) {
               this.draw();
             }
           }
         }
 
-        const canvas = document.getElementById("canvas");
-        const plane = new CoordPlane(canvas);
+        function setup(){
+          // start process
+          const canvas = document.getElementById("canvas");
+          const plane = new CoordPlane(canvas);
+          plane.fit(canvas.parentElement);
 
-        window.addEventListener("resize", render);
-        window.addEventListener("load", render);
-        editor.on("change", render); 
+          let lastY = null, lastX, isDragged = false;
+          canvas.addEventListener("mousedown", (evt) => { isDragged = true; });
+          canvas.addEventListener("mouseup", (evt) => { isDragged = false; });
+          canvas.addEventListener("mousemove", (evt) => {
+            if (isDragged) {
+              plane.moveViewport(lastX - evt.offsetX, lastY - evt.offsetY);
+              plane.render();
+            }
+            lastY = evt.offsetY;
+            lastX = evt.offsetX;
+          });
+          canvas.addEventListener("wheel", (evt) => {
+            evt.preventDefault();
+            // plane
+            plane.render();
+          });
 
-        function render(evt) {
-          plane.setCenter(canvas.width / 2, canvas.height / 2);
-          const points = toValidFormat(editor.getValue());
-          if (points && points.length) plane.setPoints(points);
-          plane.render();
+          function render(evt) {
+            const points = toValidFormat(editor.getValue());
+            if (points && points.length) plane.setPoints(points);
+            plane.fit(canvas.parentElement);
+            plane.render();
+          }
+
+          var optimizedResize = (function() {
+            var callbacks = [],
+                running = false;
+
+            // fired on resize event
+            function resize() {
+              if (!running) {
+                running = true;
+                if (window.requestAnimationFrame) {
+                  window.requestAnimationFrame(runCallbacks);
+                } else {
+                  setTimeout(runCallbacks, 66);
+                }
+              }
+            }
+
+            // run the actual callbacks
+            function runCallbacks() {
+              callbacks.forEach(function(callback) {
+                callback();
+              });
+              running = false;
+            }
+
+            // adds callback to loop
+            function addCallback(callback) {
+              if (callback) {
+                callbacks.push(callback);
+              }
+            }
+
+            return {
+              // public method to add additional callback
+              add: function(callback) {
+                if (!callbacks.length) {
+                  window.addEventListener('resize', resize);
+                }
+                addCallback(callback);
+              }
+            }
+          }());
+
+          optimizedResize.add(render);
+          editor.on("change", render);
+          render();
         }
-
-        render();
+        
+        (function() {
+          window.addEventListener("load", () => {
+            setTimeout(setup, 100);
+          });
+        })();
       </script>
   </body>
 </html>
