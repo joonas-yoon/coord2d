@@ -149,20 +149,26 @@
             const radius = 3, fontSize = 16;
             // clear before draw
             context.clearRect(0, 0, canvas.width, canvas.height);
+            context.fillStyle = "#FFFFFF";
+            context.fillRect(0, 0,canvas.width, canvas.height);
+            context.fillStyle = "#000";
             // horizonal line
             for (let i = -top % delta; zoomFactorY * i <= height; i += delta) {
               const y = zoomFactorY * i;
-              CoordPlane.drawLine(context, 0, y, width, y, i == originY ? '#333' : '#ccc');
+              CoordPlane.drawLine(context, 0, y, width, y, '#ccc');
               context.font = `${fontSize * 0.75}px Consolas`;
               context.fillText(-(top + i + Number.EPSILON).toFixed(3), fontSize, y);
             }
             // vertical line
             for (let i = -left % delta; zoomFactorX * i <= width; i += delta) {
               const x = zoomFactorX * i;
-              CoordPlane.drawLine(context, x, 0, x, height, i == originX ? '#333' : '#ccc');
+              CoordPlane.drawLine(context, x, 0, x, height, '#ccc');
               context.font = `${fontSize * 0.75}px Consolas`;
               context.fillText((left + i + Number.EPSILON).toFixed(3), x, fontSize);
             }
+            // XY axis
+            CoordPlane.drawLine(context, zoomFactorX * originX, 0, zoomFactorX * originX, height, '#333');
+            CoordPlane.drawLine(context, 0, zoomFactorY * originY, width, zoomFactorY *originY, '#333');
 
             // draw points
             let vertexId = 1;
