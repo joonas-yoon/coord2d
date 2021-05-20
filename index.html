@@ -163,8 +163,7 @@
               context.font = `${fontSize * 0.75}px Consolas`;
               context.fillText((left + i + Number.EPSILON).toFixed(3), x, fontSize);
             }
-            
-            CoordPlane.drawLine(context, 50, 50, 150, 50, '#f33');
+
             // draw points
             let vertexId = 1;
             for (const p of points) {
