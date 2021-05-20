@@ -63,6 +63,8 @@
             this.bottom = canvas.height / 2;
             this.originX = -this.left;
             this.originY = -this.top;
+            this.zoomFactorX = 1;
+            this.zoomFactorY = 1;
           }
 
           static drawLine(context, x1, y1, x2, y2, color) {
@@ -88,6 +90,14 @@
           }
 
           setViewport(left, top, right, bottom) {
+            // zoom factor
+            const {width, height} = this.canvas;
+            const zx = width / (right - left);
+            const zy = height / (bottom - top);
+            if (zx < 0.01 || zx > 100 || zy < 0.01 || zy > 100) return;
+            this.zoomFactorX = zx;
+            this.zoomFactorY = zy;
+            // set viewport bounds
             this.left = left;
             this.top = top;
             this.right = right;
@@ -97,50 +107,59 @@
           }
 
           moveViewport(dx, dy) {
+            dx /= this.zoomFactorX;
+            dy /= this.zoomFactorY;
             const width = this.right - this.left;
             const height = this.bottom - this.top;
             const left = this.left + dx, top = this.top + dy;
-            const right = left + width, bottom = top + height;
+            const right = left + width;
+            const bottom = top + height;
             this.setViewport(left, top, right, bottom);
           }
 
-          fit(container) {
+          fit(container, factor) {
+            factor = factor || 2;
             // fit to container
             this.container = container;
             const bounds = container.getBoundingClientRect();
             this.canvas.width  = bounds.width || window.innerWidth;
             this.canvas.height = bounds.height || window.innerHeight;
-            this.setViewport(-bounds.width / 2, -bounds.height / 2, bounds.width / 2, bounds.height / 2);
+            this.setViewport(-bounds.width / factor, -bounds.height / factor, bounds.width / factor, bounds.height / factor);
           }
           
           draw() {
             // config variables
             const { points, canvas, context, left, top, right, bottom } = this;
-            const { originX, originY } = this;
+            const { originX, originY, zoomFactorX, zoomFactorY } = this;
             const {width, height} = canvas;
-            const delta = 50;
-            const radius = 2, fontSize = 16;
+            const delta = 10;
+            const radius = 3, fontSize = 16;
             // clear before draw
             context.clearRect(0, 0, canvas.width, canvas.height);
             // horizonal line
-            for (let i = -top % delta; i <= height; i += delta) {
-              CoordPlane.drawLine(context, 0, i, width, i, i == originY ? '#333' : '#ccc');
+            for (let i = -top % delta; zoomFactorY * i <= height; i += delta) {
+              const y = zoomFactorY * i;
+              CoordPlane.drawLine(context, 0, y, width, y, i == originY ? '#333' : '#ccc');
             }
             // vertical line
-            for (let i = -left % delta; i <= width; i += delta) {
-              CoordPlane.drawLine(context, i, 0, i, height, i == originX ? '#333' : '#ccc');
+            for (let i = -left % delta; zoomFactorX * i <= width; i += delta) {
+              const x = zoomFactorX * i;
+              CoordPlane.drawLine(context, x, 0, x, height, i == originX ? '#333' : '#ccc');
             }
             // draw points
             let vertexId = 1;
             for (const p of points) {
               if (p.length == 2) {
-                const x = originX + p[0], y = originY - p[1];
+                const x = zoomFactorX * (originX + p[0]);
+                const y = zoomFactorY * (originY - p[1]);
                 CoordPlane.drawCircle(context, x, y, radius);
                 context.font = `${fontSize}px Consolas`;
                 context.fillText(vertexId++, x, y + fontSize);
               } else if (p.length == 4) {
-                const x1 = originX + p[0], y1 = originY - p[1];
-                const x2 = originX + p[2], y2 = originY - p[3];
+                const x1 = zoomFactorX * (originX + p[0]);
+                const y1 = zoomFactorY * (originY - p[1]);
+                const x2 = zoomFactorX * (originX + p[2]);
+                const y2 = zoomFactorY * (originY - p[3]);
                 CoordPlane.drawCircle(context, x1, y1, radius);
                 CoordPlane.drawCircle(context, x2, y2, radius);
                 CoordPlane.drawLine(context, x1, y1, x2, y2, '#000');
@@ -161,7 +180,6 @@
           // start process
           const canvas = document.getElementById("canvas");
           const plane = new CoordPlane(canvas);
-          plane.fit(canvas.parentElement);
 
           let lastY = null, lastX, isDragged = false;
           canvas.addEventListener("mousedown", (evt) => { isDragged = true; });
@@ -174,16 +192,30 @@
             lastY = evt.offsetY;
             lastX = evt.offsetX;
           });
-          canvas.addEventListener("wheel", (evt) => {
+          canvas.addEventListener("mousewheel", (evt) => {
             evt.preventDefault();
-            // plane
-            plane.render();
+            zoom(evt.deltaY);
           });
+
+          function initSize() {
+            plane.fit(canvas.parentElement, 10);
+          }
 
           function render(evt) {
             const points = toValidFormat(editor.getValue());
             if (points && points.length) plane.setPoints(points);
-            plane.fit(canvas.parentElement);
+            plane.render();
+          }
+
+          function zoom(delta) {
+            const ratio = canvas.width / canvas.height;
+            delta = 5 * (plane.right - plane.left) / delta;
+            const deltaX = delta * ratio;
+            const deltaY = delta;
+            plane.setViewport(
+              plane.left - deltaX, plane.top - deltaY,
+              plane.right + deltaX, plane.bottom + deltaY
+            )
             plane.render();
           }
 
@@ -229,8 +261,12 @@
             }
           }());
 
-          optimizedResize.add(render);
+          optimizedResize.add(() => {
+            initSize();
+            render();
+          });
           editor.on("change", render);
+          initSize();
           render();
         }
         
