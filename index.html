@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    
+    <title>Coord Plane Viewer</title>
+
+    <!--[if lt IE 9]>
+      <script src="https://oss.maxcdn.com/html5shiv/3.7.2/html5shiv.min.js"></script>
+      <script src="https://oss.maxcdn.com/respond/1.4.2/respond.min.js"></script>
+    <![endif]-->
+
+    <style>
+      html, body { width:  100%; height: 100%; margin: 0; padding: 0; }
+      div { box-sizing: border-box; }
+    </style>
+  </head>
+  <body>
+      <div class="container">
+        <div class="col" style="position: absolute; left: 0; display:block; width: 300px; height: 100vh; box-shadow: 2px 0px 5px rgb(0,0,0,.2);">
+          <div id="editor" style="width: 300px; height: 500px;">50 30
+10 20
+60 30
+40
+30.5 20
+10
+40,10
+-20 60 90 60
+-50 -90 80 60</div>
+        </div>
+        <div class="col" style="position: absolute; left: 300px; display:block; width: calc(100% - 300px); height: 100vh;">
+          <canvas id="canvas" style="width: 100%; height: 100%;"></canvas>
+        </div>
+      </div>
+
+      <script src="https://pagecdn.io/lib/ace/1.4.5/ace.js" integrity="sha256-5Xkhn3k/1rbXB+Q/DX/2RuAtaB4dRRyQvMs83prFjpM=" crossorigin="anonymous"></script>
+      <script>
+        const editor = ace.edit("editor");
+
+        function toValidFormat(text) {
+          const ret = [];
+          text = text.replace(/\n+/g, '\n');
+          for (const s of text.split('\n')) {
+            let l = s.trim().split(/\s|,/).map((x) => Number(x));
+            if (l.length < 2) l.push(0);
+            ret.push(l);
+          }
+          return ret;
+        }
+
+        class CoordPlane {
+          constructor(canvas) {
+            this.points = [];
+            this.canvas = canvas;
+            this.context = canvas.getContext('2d');
+            this.container = canvas.parentElement;
+            this.centerX = canvas.width / 2;
+            this.centerY = canvas.height / 2;
+          }
+
+          static drawLine(context, x1, y1, x2, y2, color) {
+            context.beginPath();
+            context.moveTo(x1, y1);
+            context.lineTo(x2, y2);
+            context.lineWidth = 1;
+            context.strokeStyle = color || '#000';
+            context.stroke();
+            context.closePath();
+          }
+
+          static drawCircle(context, x1, y1, radius, color) {
+            context.beginPath();
+            context.arc(x1, y1, radius, 0, 2 * Math.PI);
+            context.strokeStyle = color || '#000';
+            context.fill();
+            context.closePath();
+          }
+
+          setPoints(points) {
+            this.points = points;
+          }
+
+          setCenter(cx, cy) {
+            this.centerX = cx;
+            this.centerY = cy;
+          }
+
+          moveCenter(dx, dy) {
+            this.centerX += dx;
+            this.centerY += dy;
+          }
+          
+          draw() {
+            const { points, container, canvas, context, centerX, centerY } = this;
+            // fit to container
+            const bounds = container.getBoundingClientRect();
+            canvas.width  = bounds.width || window.innerWidth;
+            canvas.height = bounds.height || window.innerHeight;
+            // grid lines
+            const {width, height} = canvas;
+            const delta = 50;
+            // horizonal y negative
+            for (let i = 0; i < height / 2; i += delta) {
+              CoordPlane.drawLine(context, 0, centerY + i, width, centerY + i, '#cccccc');
+              CoordPlane.drawLine(context, 0, centerY - i, width, centerY - i, '#cccccc');
+            }
+            for (let i = 0; i < width / 2; i += delta) {
+              CoordPlane.drawLine(context, centerX + i, 0, centerX + i, height, '#cccccc');
+              CoordPlane.drawLine(context, centerX - i, 0, centerX - i, height, '#cccccc');
+            }
+            // XY axis
+            CoordPlane.drawLine(context, centerX, 0, centerX, height, '#000');
+            CoordPlane.drawLine(context, 0, centerY, width, centerY, '#000');
+
+            // draw points
+            const radius = 2, fontSize = 16;
+            let vertexId = 1;
+            for (const p of points) {
+              console.log(p);
+              if (p.length == 2) {
+                CoordPlane.drawCircle(context, centerX + p[0], centerY - p[1], radius);
+                context.font = `${fontSize}px Consolas`;
+                context.fillText(vertexId++, centerX + p[0], centerY - p[1] + fontSize);
+              } else if (p.length == 4) {
+                CoordPlane.drawCircle(context, centerX + p[0], centerY - p[1], radius);
+                CoordPlane.drawCircle(context, centerX + p[2], centerY - p[3], radius);
+                CoordPlane.drawLine(context, centerX + p[0], centerY - p[1], centerX + p[2], centerY - p[3], '#000');
+                context.font = `${fontSize}px Consolas`;
+                context.fillText(vertexId++, centerX + (p[0] + p[2]) / 2, centerY - (p[1] + p[3]) / 2 + fontSize);
+              }
+            }
+          }
+          
+          render() {
+            console.log(this);
+            if (this.points && this.points.length) {
+              this.draw();
+            }
+          }
+        }
+
+        const canvas = document.getElementById("canvas");
+        const plane = new CoordPlane(canvas);
+
+        window.addEventListener("resize", render);
+        window.addEventListener("load", render);
+        editor.on("change", render); 
+
+        function render(evt) {
+          plane.setCenter(canvas.width / 2, canvas.height / 2);
+          const points = toValidFormat(editor.getValue());
+          if (points && points.length) plane.setPoints(points);
+          plane.render();
+        }
+
+        render();
+      </script>
+  </body>
+</html>
