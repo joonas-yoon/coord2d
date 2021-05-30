@@ -53,9 +53,12 @@
           const ret = [];
           text = text.replace(/\n+/g, '\n');
           for (const s of text.split('\n')) {
-            let l = s.trim().split(/\s|,/).map((x) => Number(x));
-            if (l.length < 2) l.push(0);
-            ret.push(l);
+            const l = s.replace(/\s{2,}/g, ' ').trim() || '';
+            if (l.length > 0) {
+              const p = l.split(/\s|,/).map((x) => Number(x));
+              if (p.length == 1) p.push(0);
+              ret.push(p);
+            }
           }
           return ret;
         }
