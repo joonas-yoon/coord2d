@@ -188,18 +188,21 @@
                 const y = zoomFactorY * (originY - p[1]);
                 CoordPlane.drawCircle(context, x, y, radius);
                 context.font = `${fontSize}px Consolas`;
-                context.fillText(vertexId++, x, y + fontSize);
-              } else if (p.length == 4) {
-                const x1 = zoomFactorX * (originX + p[0]);
-                const y1 = zoomFactorY * (originY - p[1]);
-                const x2 = zoomFactorX * (originX + p[2]);
-                const y2 = zoomFactorY * (originY - p[3]);
-                CoordPlane.drawCircle(context, x1, y1, radius);
-                CoordPlane.drawCircle(context, x2, y2, radius);
-                CoordPlane.drawLine(context, x1, y1, x2, y2, '#000');
-                context.font = `${fontSize}px Consolas`;
-                context.fillText(vertexId++, (x1 + x2) / 2, (y1 + y2) / 2 + fontSize);
+                context.fillText(vertexId, x, y + fontSize);
+              } else if (p.length >= 4) {
+                for (let i = 0; i + 1 < p.length; i += 2) {
+                  const x1 = zoomFactorX * (originX + p[i]);
+                  const y1 = zoomFactorY * (originY - p[i + 1]);
+                  const x2 = zoomFactorX * (originX + p[(i + 2) % p.length]);
+                  const y2 = zoomFactorY * (originY - p[(i + 3) % p.length]);
+                  CoordPlane.drawCircle(context, x1, y1, radius);
+                  CoordPlane.drawCircle(context, x2, y2, radius);
+                  CoordPlane.drawLine(context, x1, y1, x2, y2, '#000');
+                  context.font = `${fontSize}px Consolas`;
+                  context.fillText(vertexId, (x1 + x2) / 2, (y1 + y2) / 2 + fontSize);
+                }
               }
+              vertexId += 1;
             }
             
             function axisText(n) {
