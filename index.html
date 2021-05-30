@@ -117,7 +117,7 @@
             const {width, height} = this.canvas;
             const zx = width / (right - left);
             const zy = height / (bottom - top);
-            if (zx < 0.01 || zx > 1000 || zy < 0.01 || zy > 1000) return;
+            if (zx < 1e-4 || zx > 1e5 || zy < 1e-4 || zy > 1e5) return;
             this.zoomFactorX = zx;
             this.zoomFactorY = zy;
             // set viewport bounds
@@ -167,14 +167,14 @@
               const y = zoomFactorY * i;
               CoordPlane.drawLine(context, 0, y, width, y, '#ccc');
               context.font = `${fontSize * 0.75}px Consolas`;
-              context.fillText(-(top + i + Number.EPSILON).toFixed(3), fontSize, y);
+              context.fillText(axisText(-(top + i)), fontSize, y);
             }
             // vertical line
             for (let i = -left % delta; zoomFactorX * i <= width; i += delta) {
               const x = zoomFactorX * i;
               CoordPlane.drawLine(context, x, 0, x, height, '#ccc');
               context.font = `${fontSize * 0.75}px Consolas`;
-              context.fillText((left + i + Number.EPSILON).toFixed(3), x, fontSize);
+              context.fillText(axisText(left + i), x, fontSize);
             }
             // XY axis
             CoordPlane.drawLine(context, zoomFactorX * originX, 0, zoomFactorX * originX, height, '#333');
@@ -200,6 +200,14 @@
                 context.font = `${fontSize}px Consolas`;
                 context.fillText(vertexId++, (x1 + x2) / 2, (y1 + y2) / 2 + fontSize);
               }
+            }
+            
+            function axisText(n) {
+              let txt = (n + Number.EPSILON).toFixed(5);
+              const i = txt.indexOf(".");
+              while (i < txt.length && txt[txt.length-1] == '0') txt = txt.slice(0, -1);
+              if (i == txt.length - 1) txt = txt.slice(0, -1);
+              return txt;
             }
           }
           
